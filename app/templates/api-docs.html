@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Documentation - Netflix Churn Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><i class="bi bi-film"></i> Netflix Churn Predictor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">Recommendations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/simulate">Retention Simulation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cohort-analysis">Cohort Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/model-comparison">Model Comparison</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/api-docs">API</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid my-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h1>API Documentation</h1>
+                <p class="lead">Use our API to integrate churn prediction capabilities into your applications</p>
+            </div>
+        </div>
+
+        <!-- API Documentation -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="list-group sticky-top" style="top: 20px;">
+                    <a href="#overview" class="list-group-item list-group-item-action">Overview</a>
+                    <a href="#authentication" class="list-group-item list-group-item-action">Authentication</a>
+                    <a href="#churn-prediction" class="list-group-item list-group-item-action">Churn Prediction API</a>
+                    <a href="#churn-data" class="list-group-item list-group-item-action">Churn Data API</a>
+                    <a href="#shap-values" class="list-group-item list-group-item-action">SHAP Values API</a>
+                    <a href="#cohort-data" class="list-group-item list-group-item-action">Cohort Data API</a>
+                    <a href="#feature-importance" class="list-group-item list-group-item-action">Feature Importance API</a>
+                    <a href="#rate-limits" class="list-group-item list-group-item-action">Rate Limits</a>
+                    <a href="#error-codes" class="list-group-item list-group-item-action">Error Codes</a>
+                </div>
+            </div>
+            
+            <div class="col-md-9">
+                <div class="card mb-4" id="overview">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Overview</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>The Netflix Churn Predictor API enables you to integrate churn prediction capabilities into your applications. The API provides endpoints for predicting churn probability, accessing churn data, and interpreting model predictions.</p>
+                        <p>Base URL: <code>https://api.example.com/v1</code> (replace with your actual API domain)</p>
+                        <p>All API requests must include an API key for authentication. All responses are in JSON format.</p>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="authentication">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Authentication</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>Authentication is required for all API endpoints. Include your API key as a header in your requests:</p>
+                        <pre><code>X-API-Key: your_api_key_here</code></pre>
+                        <p>To obtain an API key, contact the system administrator.</p>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="churn-prediction">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Churn Prediction API</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>POST /api/predict-churn</h5>
+                        <p>Predicts churn probability for a user based on provided features.</p>
+                        
+                        <h6>Request Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "weekly_viewing_hours": 5.2,
+  "tenure_months": 12,
+  "content_diversity": 7,
+  "price_increase": 1,
+  "technical_issues": 0,
+  "customer_service_calls": 1,
+  "user_rating": 4.2,
+  "recommended_content_watched": 0.65,
+  "competing_services": 2
+}</code></pre>
+                        
+                        <h6>Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "user_id": "unknown",
+  "churn_probability": 0.2134,
+  "risk_level": "low",
+  "churn_factors": ["price_sensitivity", "low_engagement"],
+  "status": "success"
+}</code></pre>
+                        
+                        <h6>Required Parameters:</h6>
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>weekly_viewing_hours</td>
+                                    <td>Number</td>
+                                    <td>Average weekly viewing hours</td>
+                                </tr>
+                                <tr>
+                                    <td>tenure_months</td>
+                                    <td>Integer</td>
+                                    <td>Number of months as a subscriber</td>
+                                </tr>
+                                <tr>
+                                    <td>content_diversity</td>
+                                    <td>Integer</td>
+                                    <td>Diversity of content watched (1-10)</td>
+                                </tr>
+                                <tr>
+                                    <td>price_increase</td>
+                                    <td>Boolean</td>
+                                    <td>Whether the user experienced a price increase (0 or 1)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="churn-data">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Churn Data API</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>GET /api/churn-data</h5>
+                        <p>Retrieves aggregated churn statistics and metrics.</p>
+                        
+                        <h6>Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "total_users": 5823,
+  "at_risk_count": 721,
+  "at_risk_percentage": 12.4,
+  "subscription_distribution": {
+    "Basic": 2105,
+    "Standard": 2468,
+    "Premium": 1250
+  },
+  "tenure_distribution": {
+    "count": 5823,
+    "mean": 15.7,
+    "min": 1,
+    "max": 60
+  },
+  "timestamp": "2025-05-01T09:15:32.452Z",
+  "status": "success"
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="shap-values">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">SHAP Values API</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>GET /api/user/{user_id}/shap</h5>
+                        <p>Retrieves SHAP values for a specific user, explaining the model's churn prediction.</p>
+                        
+                        <h6>Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "user_id": 12345,
+  "shap_data": {
+    "features": ["weekly_viewing_hours", "tenure_months", "content_diversity", "price_increase", "technical_issues"],
+    "values": [0.15, -0.21, 0.05, 0.18, 0.07],
+    "base_value": 0.5
+  },
+  "status": "success"
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="cohort-data">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Cohort Data API</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>GET /api/cohort-data?type={cohort_type}</h5>
+                        <p>Retrieves cohort analysis data based on the specified cohort type.</p>
+                        
+                        <h6>Query Parameters:</h6>
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Parameter</th>
+                                    <th>Type</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>type</td>
+                                    <td>String</td>
+                                    <td>Cohort type: 'monthly', 'subscription', 'region', 'device', or 'tenure'</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <h6>Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "cohort_type": "subscription",
+  "cohort_data": [
+    {
+      "subscription_type": "Basic",
+      "mean": 0.18,
+      "count": 2105
+    },
+    {
+      "subscription_type": "Standard",
+      "mean": 0.12,
+      "count": 2468
+    },
+    {
+      "subscription_type": "Premium",
+      "mean": 0.08,
+      "count": 1250
+    }
+  ],
+  "status": "success"
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="feature-importance">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Feature Importance API</h2>
+                    </div>
+                    <div class="card-body">
+                        <h5>GET /api/feature-importance</h5>
+                        <p>Retrieves feature importance values from the current active model.</p>
+                        
+                        <h6>Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "feature_importance": {
+    "weekly_viewing_hours": 0.35,
+    "tenure_months": 0.25,
+    "content_diversity": 0.15,
+    "price_increase": 0.08,
+    "technical_issues": 0.06,
+    "customer_service_calls": 0.04,
+    "account_sharing": 0.03,
+    "competing_services": 0.02,
+    "user_rating": 0.01,
+    "last_login_days": 0.01
+  },
+  "status": "success"
+}</code></pre>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="rate-limits">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Rate Limits</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>Our API implements rate limiting to ensure fair usage:</p>
+                        <ul>
+                            <li>100 requests per minute for prediction endpoints</li>
+                            <li>500 requests per day for data endpoints</li>
+                            <li>10 requests per minute for SHAP value endpoints</li>
+                        </ul>
+                        <p>Rate limit information is included in the response headers:</p>
+                        <ul>
+                            <li><code>X-RateLimit-Limit</code>: Maximum requests allowed in the current period</li>
+                            <li><code>X-RateLimit-Remaining</code>: Remaining requests in the current period</li>
+                            <li><code>X-RateLimit-Reset</code>: Time (in seconds) until the rate limit resets</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="card mb-4" id="error-codes">
+                    <div class="card-header bg-dark text-white">
+                        <h2 class="card-title h5 mb-0">Error Codes</h2>
+                    </div>
+                    <div class="card-body">
+                        <p>The API returns standard HTTP status codes and detailed error messages in JSON format:</p>
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Status Code</th>
+                                    <th>Meaning</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>200 OK</td>
+                                    <td>Success</td>
+                                    <td>The request was successful</td>
+                                </tr>
+                                <tr>
+                                    <td>400 Bad Request</td>
+                                    <td>Invalid Request</td>
+                                    <td>The request was malformed or missing required parameters</td>
+                                </tr>
+                                <tr>
+                                    <td>401 Unauthorized</td>
+                                    <td>Authentication Error</td>
+                                    <td>Missing or invalid API key</td>
+                                </tr>
+                                <tr>
+                                    <td>404 Not Found</td>
+                                    <td>Resource Not Found</td>
+                                    <td>The requested resource does not exist</td>
+                                </tr>
+                                <tr>
+                                    <td>429 Too Many Requests</td>
+                                    <td>Rate Limit Exceeded</td>
+                                    <td>You have exceeded the API rate limit</td>
+                                </tr>
+                                <tr>
+                                    <td>500 Internal Server Error</td>
+                                    <td>Server Error</td>
+                                    <td>An error occurred on the server</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <h6>Error Response Example:</h6>
+                        <pre class="bg-light p-3 rounded"><code>{
+  "error": "Missing required feature: weekly_viewing_hours",
+  "status": "error"
+}</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Netflix Churn Prediction System</h5>
+                    <p>A machine learning solution for predicting and preventing customer churn</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 Netflix Churn Predictor</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 

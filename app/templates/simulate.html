@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retention Simulation - Netflix Churn Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><i class="bi bi-film"></i> Netflix Churn Predictor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">Recommendations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/simulate">Retention Simulation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cohort-analysis">Cohort Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/model-comparison">Model Comparison</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api-docs">API</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h1>Retention Strategy Simulation</h1>
+                <p class="lead">Test different retention strategies and see their predicted impact on churn reduction</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-5">
+                <div class="card mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">Strategy Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="simulation-form">
+                            <div class="mb-3">
+                                <label for="strategy-type" class="form-label">Retention Strategy</label>
+                                <select class="form-select" id="strategy-type">
+                                    <option value="discount">Price Discount</option>
+                                    <option value="content">Enhanced Content Recommendations</option>
+                                    <option value="engagement">Engagement Campaign</option>
+                                    <option value="feature">New Feature Highlight</option>
+                                    <option value="upgrade">Free Plan Upgrade Trial</option>
+                                    <option value="urgent">Special Retention Offer</option>
+                                    <option value="survey">Feedback & Improvement Survey</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="target-segment" class="form-label">Target User Segment</label>
+                                <select class="form-select" id="target-segment">
+                                    <option value="all">All Users</option>
+                                    <option value="high_risk">High Risk Users (>70% churn probability)</option>
+                                    <option value="new_users">New Users (<3 months tenure)</option>
+                                    <option value="low_engagement">Low Engagement Users (<5 hrs/week)</option>
+                                    <option value="basic_plan">Basic Plan Subscribers</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="discount-amount" class="form-label">Discount Amount (%)</label>
+                                <input type="range" class="form-range" id="discount-amount" min="10" max="50" step="5" value="20">
+                                <div class="d-flex justify-content-between">
+                                    <span>10%</span>
+                                    <span id="discount-value">20%</span>
+                                    <span>50%</span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="duration" class="form-label">Campaign Duration</label>
+                                <select class="form-select" id="duration">
+                                    <option value="1">1 Month</option>
+                                    <option value="3" selected>3 Months</option>
+                                    <option value="6">6 Months</option>
+                                    <option value="12">12 Months</option>
+                                </select>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary w-100">Simulate Strategy</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">Strategy Description</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="strategy-description">
+                            <h5>Price Discount</h5>
+                            <p>Offer a temporary price reduction to incentivize users to remain subscribed. Particularly effective for price-sensitive customers and during economic downturns.</p>
+                            <ul>
+                                <li><strong>Pros:</strong> Immediate impact on retention</li>
+                                <li><strong>Cons:</strong> Reduced revenue, customers may expect continued discounts</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-7">
+                <div class="card mb-4">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">Simulation Results</h5>
+                    </div>
+                    <div class="card-body" id="results-container">
+                        <div class="text-center py-5 d-none" id="loading">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Running simulation...</p>
+                        </div>
+                        
+                        <div class="d-none" id="results">
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">Churn Reduction</h5>
+                                            <p class="display-5 text-success" id="churn-reduction">-15%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">Users Affected</h5>
+                                            <p class="display-5" id="users-affected">1,250</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">Implementation Cost</h5>
+                                            <p class="display-6" id="implementation-cost">Medium</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card bg-light">
+                                        <div class="card-body text-center">
+                                            <h5 class="card-title">ROI Score</h5>
+                                            <p class="display-6" id="roi-score">3.5</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-light mb-4">
+                                <div class="card-body">
+                                    <h5 class="card-title">Expected Impact Timeline</h5>
+                                    <canvas id="impact-timeline" height="200"></canvas>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <h5>Simulation Insight</h5>
+                                <p id="simulation-insight">This price discount strategy is projected to save 188 users from churning over the next 3 months, representing a 15% reduction in churn rate for the target segment. The ROI score of 3.5 indicates a good return on investment.</p>
+                            </div>
+                            
+                            <button class="btn btn-success w-100" id="apply-strategy">Apply This Strategy</button>
+                        </div>
+                        
+                        <div class="text-center py-5" id="no-results">
+                            <i class="bi bi-graph-up" style="font-size: 3rem;"></i>
+                            <p class="mt-3">Run a simulation to see retention strategy results</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">Strategy Comparison</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="strategy-comparison" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <h5 class="card-title mb-0">Applied Strategies History</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Date Applied</th>
+                                        <th>Strategy</th>
+                                        <th>Target Segment</th>
+                                        <th>Predicted Impact</th>
+                                        <th>Actual Impact</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>2023-09-15</td>
+                                        <td>Price Discount (30%)</td>
+                                        <td>High Risk Users</td>
+                                        <td>-25% churn</td>
+                                        <td>-22% churn</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-10-01</td>
+                                        <td>Enhanced Content Recommendations</td>
+                                        <td>Low Engagement Users</td>
+                                        <td>-15% churn</td>
+                                        <td>-14% churn</td>
+                                        <td><span class="badge bg-success">Completed</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>2023-11-10</td>
+                                        <td>Free Plan Upgrade Trial</td>
+                                        <td>Basic Plan Subscribers</td>
+                                        <td>-20% churn</td>
+                                        <td>In progress</td>
+                                        <td><span class="badge bg-warning">Active</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Netflix Churn Prediction System</h5>
+                    <p>A machine learning solution for predicting and preventing customer churn</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 Netflix Churn Predictor</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Strategy description updates
+        const strategyDescriptions = {
+            'discount': `
+                <h5>Price Discount</h5>
+                <p>Offer a temporary price reduction to incentivize users to remain subscribed. Particularly effective for price-sensitive customers and during economic downturns.</p>
+                <ul>
+                    <li><strong>Pros:</strong> Immediate impact on retention</li>
+                    <li><strong>Cons:</strong> Reduced revenue, customers may expect continued discounts</li>
+                </ul>
+            `,
+            'content': `
+                <h5>Enhanced Content Recommendations</h5>
+                <p>Improve the recommendation algorithm specifically for at-risk users to increase content discovery and engagement.</p>
+                <ul>
+                    <li><strong>Pros:</strong> Increases engagement, long-term solution</li>
+                    <li><strong>Cons:</strong> Takes time to show results, requires algorithm changes</li>
+                </ul>
+            `,
+            'engagement': `
+                <h5>Engagement Campaign</h5>
+                <p>Proactively reach out to users with personalized content suggestions, new release notifications, and viewing reminders.</p>
+                <ul>
+                    <li><strong>Pros:</strong> Low cost, personalized approach</li>
+                    <li><strong>Cons:</strong> May be seen as intrusive if overdone</li>
+                </ul>
+            `,
+            'feature': `
+                <h5>New Feature Highlight</h5>
+                <p>Promote underutilized features like offline downloads, multiple profiles, or parental controls that add value to the subscription.</p>
+                <ul>
+                    <li><strong>Pros:</strong> No additional development cost, increases product stickiness</li>
+                    <li><strong>Cons:</strong> Limited impact if features aren't relevant to users</li>
+                </ul>
+            `,
+            'upgrade': `
+                <h5>Free Plan Upgrade Trial</h5>
+                <p>Offer a limited-time free upgrade to the next subscription tier to demonstrate additional value.</p>
+                <ul>
+                    <li><strong>Pros:</strong> May lead to permanent upgrades, increases perceived value</li>
+                    <li><strong>Cons:</strong> Temporary revenue loss, may not retain after trial</li>
+                </ul>
+            `,
+            'urgent': `
+                <h5>Special Retention Offer</h5>
+                <p>Provide a significant incentive specifically to users who have shown strong signals of imminent cancellation.</p>
+                <ul>
+                    <li><strong>Pros:</strong> High effectiveness for users at critical churn risk</li>
+                    <li><strong>Cons:</strong> Expensive, should be used selectively</li>
+                </ul>
+            `,
+            'survey': `
+                <h5>Feedback & Improvement Survey</h5>
+                <p>Collect direct feedback from at-risk users about their concerns and desired improvements, with incentives for participation.</p>
+                <ul>
+                    <li><strong>Pros:</strong> Valuable insights, shows users their opinion matters</li>
+                    <li><strong>Cons:</strong> Must act on feedback to be effective</li>
+                </ul>
+            `
+        };
+
+        // Strategy type change handler
+        document.getElementById('strategy-type').addEventListener('change', function() {
+            const strategyType = this.value;
+            document.getElementById('strategy-description').innerHTML = strategyDescriptions[strategyType];
+            
+            // Show/hide discount amount based on strategy
+            if (strategyType === 'discount' || strategyType === 'urgent') {
+                document.querySelector('.form-range').parentElement.classList.remove('d-none');
+            } else {
+                document.querySelector('.form-range').parentElement.classList.add('d-none');
+            }
+        });
+
+        // Discount slider update
+        document.getElementById('discount-amount').addEventListener('input', function() {
+            document.getElementById('discount-value').textContent = this.value + '%';
+        });
+
+        // Simulation form submission
+        document.getElementById('simulation-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            // Show loading animation, hide no results message
+            document.getElementById('loading').classList.remove('d-none');
+            document.getElementById('no-results').classList.add('d-none');
+            document.getElementById('results').classList.add('d-none');
+            
+            // Get form values
+            const strategyType = document.getElementById('strategy-type').value;
+            const targetSegment = document.getElementById('target-segment').value;
+            
+            // Call the backend API to run simulation
+            fetch('/simulate-retention-strategy', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    strategy: strategyType,
+                    target_segment: targetSegment,
+                    discount_amount: document.getElementById('discount-amount').value,
+                    duration: document.getElementById('duration').value
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Hide loading, show results
+                document.getElementById('loading').classList.add('d-none');
+                document.getElementById('results').classList.remove('d-none');
+                
+                // Update results display
+                document.getElementById('churn-reduction').textContent = '-' + (data.churn_reduction * 100).toFixed(1) + '%';
+                document.getElementById('users-affected').textContent = data.affected_users.toLocaleString();
+                document.getElementById('implementation-cost').textContent = data.cost.charAt(0).toUpperCase() + data.cost.slice(1);
+                document.getElementById('roi-score').textContent = data.roi.toFixed(1);
+                
+                // Update insight text
+                const insightText = `This ${document.getElementById('strategy-type').options[document.getElementById('strategy-type').selectedIndex].text} 
+                                    strategy is projected to save ${Math.round(data.affected_users * data.churn_reduction)} users from churning 
+                                    over the next ${document.getElementById('duration').value} months, representing a 
+                                    ${(data.churn_reduction * 100).toFixed(1)}% reduction in churn rate for the target segment. 
+                                    The ROI score of ${data.roi.toFixed(1)} indicates a 
+                                    ${data.roi > 3 ? 'good' : data.roi > 1 ? 'moderate' : 'poor'} return on investment.`;
+                                    
+                document.getElementById('simulation-insight').textContent = insightText;
+                
+                // Update impact timeline chart
+                updateImpactChart(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').classList.add('d-none');
+                document.getElementById('no-results').classList.remove('d-none');
+                alert('An error occurred while running the simulation. Please try again.');
+            });
+        });
+
+        // Impact timeline chart initialization
+        function updateImpactChart(data) {
+            const duration = parseInt(document.getElementById('duration').value);
+            const labels = [];
+            
+            for (let i = 1; i <= duration; i++) {
+                labels.push('Month ' + i);
+            }
+            
+            const timelineData = generateTimelineData(data.churn_reduction, data.timeframe, duration);
+            
+            // Create or update chart
+            if (window.impactChart) {
+                window.impactChart.data.labels = labels;
+                window.impactChart.data.datasets[0].data = timelineData;
+                window.impactChart.update();
+            } else {
+                const ctx = document.getElementById('impact-timeline').getContext('2d');
+                window.impactChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Churn Reduction (%)',
+                            data: timelineData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 2,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Churn Reduction (%)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Generate timeline data based on timeframe and duration
+        function generateTimelineData(maxReduction, timeframe, duration) {
+            const data = [];
+            maxReduction = maxReduction * 100; // Convert to percentage
+            
+            if (timeframe === 'immediate') {
+                // Front-loaded impact
+                data.push(maxReduction);
+                for (let i = 1; i < duration; i++) {
+                    data.push(maxReduction * Math.pow(0.8, i));
+                }
+            } else if (timeframe === 'short-term') {
+                // Quick ramp-up, then decline
+                for (let i = 0; i < duration; i++) {
+                    if (i === 0) data.push(maxReduction * 0.5);
+                    else if (i === 1) data.push(maxReduction);
+                    else data.push(maxReduction * Math.pow(0.9, i-1));
+                }
+            } else if (timeframe === 'medium-term') {
+                // Gradual increase, then plateau
+                for (let i = 0; i < duration; i++) {
+                    data.push(maxReduction * Math.min(1, (i+1)/3));
+                }
+            } else {
+                // Long-term: slow but steady increase
+                for (let i = 0; i < duration; i++) {
+                    data.push(maxReduction * Math.min(1, (i+1)/4));
+                }
+            }
+            
+            return data;
+        }
+
+        // Strategy comparison chart
+        const strategyComparisonCtx = document.getElementById('strategy-comparison').getContext('2d');
+        const strategyComparisonChart = new Chart(strategyComparisonCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Price Discount', 'Content Recommendations', 'Engagement Campaign', 'Feature Highlight', 'Plan Upgrade', 'Special Offer', 'Survey'],
+                datasets: [{
+                    label: 'Churn Reduction (%)',
+                    data: [20, 15, 10, 5, 25, 30, 10],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }, {
+                    label: 'Cost Factor',
+                    data: [3, 2, 1, 1, 2, 4, 1],
+                    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        // Apply strategy button
+        document.getElementById('apply-strategy').addEventListener('click', function() {
+            alert('Strategy applied successfully! The campaign will begin immediately and results will be tracked in the Applied Strategies History table.');
+        });
+    </script>
+</body>
+</html> 

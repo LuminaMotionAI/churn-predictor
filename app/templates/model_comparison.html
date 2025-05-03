@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Comparison - Netflix Churn Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><i class="bi bi-film"></i> Netflix Churn Predictor</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dashboard">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/recommendations">Recommendations</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/simulate">Retention Simulation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cohort-analysis">Cohort Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/model-comparison">Model Comparison</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/api-docs">API</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid my-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <h1>Model Comparison & Hyperparameter Tuning</h1>
+                <p class="lead">Compare different machine learning models and optimize their performance</p>
+            </div>
+        </div>
+
+        <!-- Tabs Navigation -->
+        <ul class="nav nav-tabs mb-4" id="modelTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="comparison-tab" data-bs-toggle="tab" data-bs-target="#comparison" type="button" role="tab" aria-controls="comparison" aria-selected="true">Model Comparison</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tuning-tab" data-bs-toggle="tab" data-bs-target="#tuning" type="button" role="tab" aria-controls="tuning" aria-selected="false">Hyperparameter Tuning</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button" role="tab" aria-controls="training" aria-selected="false">Model Training</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="feature-tab" data-bs-toggle="tab" data-bs-target="#feature" type="button" role="tab" aria-controls="feature" aria-selected="false">Feature Engineering</button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="modelTabsContent">
+            <!-- Model Comparison Tab -->
+            <div class="tab-pane fade show active" id="comparison" role="tabpanel" aria-labelledby="comparison-tab">
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Model Performance Comparison</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Model</th>
+                                                <th>Accuracy</th>
+                                                <th>Precision</th>
+                                                <th>Recall</th>
+                                                <th>F1 Score</th>
+                                                <th>AUC-ROC</th>
+                                                <th>Training Time</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for model in models %}
+                                            <tr>
+                                                <td>{{ model.name }}</td>
+                                                <td>{{ "%.4f"|format(model.accuracy) }}</td>
+                                                <td>{{ "%.4f"|format(model.precision) }}</td>
+                                                <td>{{ "%.4f"|format(model.recall) }}</td>
+                                                <td>{{ "%.4f"|format(model.f1) }}</td>
+                                                <td>{{ "%.4f"|format(model.auc) }}</td>
+                                                <td>{{ "%.2f"|format(model.training_time) }}s</td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <button class="btn btn-outline-primary view-model" data-model-id="{{ model.id }}">View Details</button>
+                                                        <button class="btn btn-outline-success set-active" data-model-id="{{ model.id }}" {% if model.is_active %}disabled{% endif %}>
+                                                            {% if model.is_active %}Active{% else %}Set Active{% endif %}
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Performance Metrics Comparison</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="performance-chart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">ROC Curves Comparison</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="roc-chart" height="300"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hyperparameter Tuning Tab -->
+            <div class="tab-pane fade" id="tuning" role="tabpanel" aria-labelledby="tuning-tab">
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Hyperparameter Tuning</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="tuning-form">
+                                    <div class="mb-3">
+                                        <label for="model-type" class="form-label">Model Type</label>
+                                        <select class="form-select" id="model-type" name="model_type">
+                                            <option value="xgboost">XGBoost</option>
+                                            <option value="lightgbm">LightGBM</option>
+                                            <option value="randomforest">Random Forest</option>
+                                            <option value="logistic">Logistic Regression</option>
+                                            <option value="svm">SVM</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="param-grid" class="form-label">Parameter Grid</label>
+                                        <textarea class="form-control" id="param-grid" name="param_grid" rows="10">{
+  "n_estimators": [50, 100, 200],
+  "max_depth": [3, 5, 7],
+  "learning_rate": [0.01, 0.1, 0.2],
+  "subsample": [0.8, 1.0],
+  "colsample_bytree": [0.8, 1.0]
+}</textarea>
+                                        <div class="form-text">JSON format. Parameters depend on the selected model type.</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="cv-folds" class="form-label">Cross-Validation Folds</label>
+                                        <input type="number" class="form-control" id="cv-folds" name="cv_folds" value="5" min="3" max="10">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Cross-Validation Options</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="use-stratified" name="use_stratified" checked>
+                                            <label class="form-check-label" for="use-stratified">
+                                                Use Stratified Cross-Validation
+                                            </label>
+                                            <div class="form-text">Preserves the percentage of samples for each class in each fold (recommended for imbalanced datasets)</div>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="shuffle-data" name="shuffle_data" checked>
+                                            <label class="form-check-label" for="shuffle-data">
+                                                Shuffle Data Before Splitting
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="scoring-metric" class="form-label">Scoring Metric</label>
+                                        <select class="form-select" id="scoring-metric" name="scoring_metric">
+                                            <option value="accuracy">Accuracy</option>
+                                            <option value="precision">Precision</option>
+                                            <option value="recall">Recall</option>
+                                            <option value="f1" selected>F1 Score</option>
+                                            <option value="roc_auc">ROC AUC</option>
+                                            <option value="average_precision">Average Precision</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn btn-primary w-100">Start Hyperparameter Tuning</button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Parameter Descriptions</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="param-descriptions">
+                                    <h6>XGBoost Parameters</h6>
+                                    <ul>
+                                        <li><strong>n_estimators</strong>: Number of boosting rounds</li>
+                                        <li><strong>max_depth</strong>: Maximum tree depth</li>
+                                        <li><strong>learning_rate</strong>: Step size shrinkage used to prevent overfitting</li>
+                                        <li><strong>subsample</strong>: Subsample ratio of training instances</li>
+                                        <li><strong>colsample_bytree</strong>: Subsample ratio of columns when constructing each tree</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-7">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Tuning Results</h5>
+                            </div>
+                            <div class="card-body" id="tuning-results-container">
+                                <div class="text-center py-5 d-none" id="tuning-loading">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2">Running hyperparameter tuning...</p>
+                                    <p class="text-muted small">This may take several minutes depending on the parameter grid size.</p>
+                                </div>
+                                
+                                <div class="alert alert-danger mb-3 d-none" id="tuning-error">
+                                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                    <span id="tuning-error-message">하이퍼파라미터 튜닝 중 오류가 발생했습니다.</span>
+                                </div>
+                                
+                                <div class="d-none" id="tuning-results">
+                                    <div class="alert alert-success mb-4">
+                                        <h5>Best Parameters Found:</h5>
+                                        <pre id="best-params" class="mb-0 mt-2"></pre>
+                                        <div class="mt-2">
+                                            <small class="text-muted" id="cv-method-used">Cross-validation method used will appear here</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <h5>Performance with Best Parameters:</h5>
+                                    <div class="row mb-4">
+                                        <div class="col-sm-3">
+                                            <div class="card bg-light text-center">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Accuracy</h6>
+                                                    <p class="card-text" id="best-accuracy">0.854</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="card bg-light text-center">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Precision</h6>
+                                                    <p class="card-text" id="best-precision">0.823</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="card bg-light text-center">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">Recall</h6>
+                                                    <p class="card-text" id="best-recall">0.791</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-3">
+                                            <div class="card bg-light text-center">
+                                                <div class="card-body">
+                                                    <h6 class="card-title">F1 Score</h6>
+                                                    <p class="card-text" id="best-f1">0.807</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <h5>Parameter Importance:</h5>
+                                    <canvas id="param-importance-chart" height="200"></canvas>
+                                    
+                                    <div class="text-center mt-4">
+                                        <button class="btn btn-success" id="save-tuned-model">Save Tuned Model</button>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center py-5" id="no-tuning-results">
+                                    <i class="bi bi-sliders" style="font-size: 3rem;"></i>
+                                    <p class="mt-3">Configure and run hyperparameter tuning to see results</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Parameter Search Space Visualization</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="param-search-placeholder" class="text-center py-5">
+                                    <p>Run hyperparameter tuning to see parameter search space visualization</p>
+                                </div>
+                                <div id="param-search-viz" class="d-none">
+                                    <canvas id="param-search-chart" height="250"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model Training Tab -->
+            <div class="tab-pane fade" id="training" role="tabpanel" aria-labelledby="training-tab">
+                <!-- Model training content would go here -->
+                <div class="row">
+                    <div class="col-md-5">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Train New Model</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="training-form">
+                                    <div class="mb-3">
+                                        <label for="training-model-type" class="form-label">Model Type</label>
+                                        <select class="form-select" id="training-model-type" name="model_type">
+                                            <option value="xgboost">XGBoost</option>
+                                            <option value="lightgbm">LightGBM</option>
+                                            <option value="randomforest">Random Forest</option>
+                                            <option value="logistic">Logistic Regression</option>
+                                            <option value="ensemble">Ensemble Model (Voting)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="model-name" class="form-label">Model Name</label>
+                                        <input type="text" class="form-control" id="model-name" name="model_name" value="ChurnModel_{{ now.strftime('%Y%m%d') }}">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="test-size" class="form-label">Test Split Size</label>
+                                        <input type="range" class="form-range" id="test-size" name="test_size" min="0.1" max="0.4" step="0.05" value="0.2">
+                                        <div class="d-flex justify-content-between">
+                                            <span>10%</span>
+                                            <span id="test-size-value">20%</span>
+                                            <span>40%</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="use-smote" name="use_smote" checked>
+                                        <label class="form-check-label" for="use-smote">
+                                            Use SMOTE for Class Balancing
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="standardize-features" name="standardize_features" checked>
+                                        <label class="form-check-label" for="standardize-features">
+                                            Standardize Features
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="random-state" class="form-label">Random State (for reproducibility)</label>
+                                        <input type="number" class="form-control" id="random-state" name="random_state" value="42">
+                                    </div>
+                                    
+                                    <button type="submit" class="btn btn-primary w-100">Train Model</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-7">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Training Progress</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="text-center py-5 d-none" id="training-loading">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p class="mt-2">Training model...</p>
+                                    <div class="progress mt-3">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" id="training-progress" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-none" id="training-results">
+                                    <div class="alert alert-success mb-4">
+                                        <h5>Model Training Complete</h5>
+                                        <p id="training-summary" class="mb-0 mt-2">Model trained successfully with 0.855 accuracy.</p>
+                                    </div>
+                                    
+                                    <div class="row mb-4">
+                                        <div class="col-md-6">
+                                            <h5>Confusion Matrix</h5>
+                                            <canvas id="confusion-matrix" height="250"></canvas>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h5>Learning Curves</h5>
+                                            <canvas id="learning-curves" height="250"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="no-training-results">
+                                    <div class="text-center py-5">
+                                        <i class="bi bi-cpu" style="font-size: 3rem;"></i>
+                                        <p class="mt-3">Configure and train a model to see results</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Feature Engineering Tab -->
+            <div class="tab-pane fade" id="feature" role="tabpanel" aria-labelledby="feature-tab">
+                <!-- Feature engineering content would go here -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Feature Importance</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="feature-importance" height="300"></canvas>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Feature Correlation Matrix</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="correlation-matrix">
+                                    {% if url_for('static', filename='images/correlation_matrix.png') %}
+                                    <img src="{{ url_for('static', filename='images/correlation_matrix.png') }}" alt="Feature Correlation Matrix" class="img-fluid" />
+                                    {% else %}
+                                    <div class="alert alert-info text-center">
+                                        <i class="bi bi-info-circle me-2"></i>
+                                        상관관계 행렬이 아직 생성되지 않았습니다. 모델을 재훈련하여 상관관계 행렬을 생성하세요.
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Feature Engineering</h5>
+                            </div>
+                            <div class="card-body">
+                                <form id="feature-engineering-form">
+                                    <div class="mb-3">
+                                        <label class="form-label">Feature Transformation</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="log-transform" name="log_transform" value="1">
+                                            <label class="form-check-label" for="log-transform">
+                                                Log Transform Skewed Features
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="polynomial" name="polynomial" value="1">
+                                            <label class="form-check-label" for="polynomial">
+                                                Add Polynomial Features (Degree 2)
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="interaction" name="interaction" value="1">
+                                            <label class="form-check-label" for="interaction">
+                                                Add Interaction Terms
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Feature Selection</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="remove-correlated" name="remove_correlated" value="1">
+                                            <label class="form-check-label" for="remove-correlated">
+                                                Remove Highly Correlated Features
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="recursive-elimination" name="recursive_elimination" value="1">
+                                            <label class="form-check-label" for="recursive-elimination">
+                                                Recursive Feature Elimination
+                                            </label>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="new-feature-expression" class="form-label">Create Custom Feature</label>
+                                        <input type="text" class="form-control" id="new-feature-expression" name="new_feature_expression" placeholder="e.g., weekly_viewing_hours / tenure_months">
+                                        <div class="form-text">Enter a mathematical expression using existing features</div>
+                                    </div>
+                                    
+                                    <button type="submit" class="btn btn-primary">Apply Feature Engineering</button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header bg-dark text-white">
+                                <h5 class="card-title mb-0">Feature Distribution</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label for="feature-selector" class="form-label">Select Feature</label>
+                                    <select class="form-select" id="feature-selector">
+                                        <option value="weekly_viewing_hours">Weekly Viewing Hours</option>
+                                        <option value="tenure_months">Tenure Months</option>
+                                        <option value="content_diversity">Content Diversity</option>
+                                        <option value="technical_issues">Technical Issues</option>
+                                        <option value="user_rating">User Rating</option>
+                                    </select>
+                                </div>
+                                <canvas id="feature-distribution" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Netflix Churn Prediction System</h5>
+                    <p>A machine learning solution for predicting and preventing customer churn</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p>&copy; 2025 Netflix Churn Predictor</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="{{ url_for('static', filename='js/model_comparison.js') }}"></script>
+</body>
+</html> 
