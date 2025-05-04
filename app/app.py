@@ -1650,4 +1650,6 @@ def update_model_info(model_id, updates):
         logger.error(f"Error updating model info: {e}")
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    import os
+    port = int(os.environ.get('PORT', 8080))
+    app.run(debug=False, host='0.0.0.0', port=port)
