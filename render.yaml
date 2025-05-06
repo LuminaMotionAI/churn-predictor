@@ -3,7 +3,7 @@ services:
     name: churn-predictor
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: bash start.sh
+    startCommand: python wsgi.py
     envVars:
       - key: PYTHONPATH
         value: .
