@@ -522,10 +522,34 @@ def dashboard():
 @app.route('/recommendations')
 def recommendations():
     """추천 시스템 결과 페이지"""
-    # 추천 시스템 시각화
-    return render_template('recommendations.html',
-                          sample_recommendations=data['sample_recommendations'],
-                          genre_distribution=data['visualization_paths'].get('genre_distribution'))
+    try:
+        # 추천 시스템 시각화를 안전하게 렌더링하기 위한 예외 처리
+        sample_recommendations = {}
+        genre_distribution = None
+        
+        # data 딕셔너리가 존재하는지 확인
+        if 'sample_recommendations' in data:
+            sample_recommendations = data['sample_recommendations']
+        
+        # visualization_paths가 존재하는지 확인
+        if 'visualization_paths' in data and 'genre_distribution' in data['visualization_paths']:
+            genre_distribution = data['visualization_paths'].get('genre_distribution')
+            
+            # 파일이 실제로 존재하는지 확인
+            genre_file_path = os.path.join(app.static_folder, 'images', 'genre_distribution.png')
+            if not os.path.exists(genre_file_path):
+                # 파일이 없으면 경로를 None으로 설정
+                genre_distribution = None
+        
+        return render_template('recommendations.html',
+                              sample_recommendations=sample_recommendations,
+                              genre_distribution=genre_distribution)
+    except Exception as e:
+        logger.error(f"Error rendering recommendations page: {e}")
+        # 간단한 오류 페이지 렌더링
+        return render_template('error.html', 
+                              error_message="Could not load recommendations. Please try again later.",
+                              status_code=500), 500
 
 @app.route('/user/<int:user_id>')
 def user_detail(user_id):
@@ -1040,53 +1064,60 @@ def create_user_recommendations(user_id):
 def init_app():
     """앱 초기화 함수"""
     global data, models
-    data, models = load_data_and_models()
     
-    # 정적 이미지 폴더 생성
-    os.makedirs(os.path.join(app.static_folder, 'images'), exist_ok=True)
-    
-    # 장르 분포 차트 생성
-    genre_source = os.path.join(reports_dir, 'genre_distribution.png')
-    genre_target = os.path.join(app.static_folder, 'images', 'genre_distribution.png')
-    
-    if not os.path.exists(genre_target):
-        # 장르 분포 차트 생성
-        create_genre_distribution_chart()
-    elif os.path.exists(genre_source):
-        # 또는 기존 파일 복사
-        import shutil
-        shutil.copy(genre_source, genre_target)
-    
-    # 상관관계 행렬 생성
-    corr_target = os.path.join(app.static_folder, 'images', 'correlation_matrix.png')
-    if not os.path.exists(corr_target):
-        create_correlation_matrix()
-    
-    # 사용자별 추천 샘플 생성
-    at_risk_users = data['at_risk_users']['user_id'].head(5).tolist()
-    for user_id in at_risk_users:
-        rec_path = os.path.join(app.static_folder, 'images', f'user_{user_id}_recommendations.png')
+    try:
+        # 데이터 및 모델 초기화
+        data = {'sample_recommendations': {}, 'visualization_paths': {}}
+        models = {}
         
-        if not os.path.exists(rec_path):
-            # 추천 차트 생성
-            create_user_recommendations(user_id)
-            # 링크 설정
-            data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
-        elif user_id not in data['sample_recommendations']:
-            # 링크 설정
-            data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
+        try:
+            data, models = load_data_and_models()
+        except Exception as e:
+            logger.error(f"Error loading data and models: {e}")
+            # 기본값 유지, 앱은 계속 실행
+        
+        # 정적 이미지 폴더 생성
+        try:
+            os.makedirs(os.path.join(app.static_folder, 'images'), exist_ok=True)
+            
+            # 장르 분포 차트 생성
+            genre_target = os.path.join(app.static_folder, 'images', 'genre_distribution.png')
+            data['visualization_paths']['genre_distribution'] = '/static/images/genre_distribution.png'
+            
+            if not os.path.exists(genre_target):
+                try:
+                    # 장르 분포 차트 생성 시도
+                    create_genre_distribution_chart()
+                except Exception as e:
+                    logger.error(f"Error creating genre distribution chart: {e}")
+            
+            # 샘플 추천 결과는 필요한 경우에만 생성
+            if 'at_risk_users' in data and not data['at_risk_users'].empty:
+                try:
+                    # 사용자별 추천 샘플 생성
+                    at_risk_users = data['at_risk_users']['user_id'].head(5).tolist()
+                    for user_id in at_risk_users:
+                        rec_path = os.path.join(app.static_folder, 'images', f'user_{user_id}_recommendations.png')
+                        
+                        if not os.path.exists(rec_path):
+                            try:
+                                # 추천 차트 생성 시도
+                                create_user_recommendations(user_id)
+                                # 링크 설정
+                                data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
+                            except Exception as e:
+                                logger.error(f"Error creating recommendations for user {user_id}: {e}")
+                        else:
+                            # 파일이 이미 존재하면 링크만 설정
+                            data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
+                except Exception as e:
+                    logger.error(f"Error processing recommendations: {e}")
+        except Exception as e:
+            logger.error(f"Error setting up static resources: {e}")
     
-    # Check if sample_recommendations exists in data
-    if 'sample_recommendations' in data:
-        for user_id, image_path in data['sample_recommendations'].items():
-            source = os.path.join(reports_dir, f'user_{user_id}_recommendations.png')
-            if os.path.exists(source):
-                target = os.path.join(app.static_folder, 'images', f'user_{user_id}_recommendations.png')
-                import shutil
-                shutil.copy(source, target)
-
-# 앱 시작 시 초기화
-init_app()
+    except Exception as e:
+        logger.error(f"Critical error in app initialization: {e}")
+        # 앱은 계속 실행되지만, 기본적인 데이터 구조만 유지
 
 @app.route('/model-comparison')
 def model_comparison():
