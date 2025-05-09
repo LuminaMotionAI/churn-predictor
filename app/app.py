@@ -1065,59 +1065,152 @@ def init_app():
     """앱 초기화 함수"""
     global data, models
     
+    # 모든 필수 데이터 구조 초기화
+    data = {
+        'sample_recommendations': {}, 
+        'visualization_paths': {},
+        'users': pd.DataFrame(),
+        'at_risk_users': pd.DataFrame(),
+        'cohorts': {}
+    }
+    models = {}
+    
     try:
-        # 데이터 및 모델 초기화
-        data = {'sample_recommendations': {}, 'visualization_paths': {}}
-        models = {}
-        
+        # 사용자 데이터 생성 또는 로드 시도
         try:
-            data, models = load_data_and_models()
+            users_path = os.path.join(data_dir, 'external', 'users.csv')
+            if os.path.exists(users_path):
+                data['users'] = pd.read_csv(users_path)
+                # 이탈 위험 사용자 식별
+                data['at_risk_users'] = data['users'][data['users']['churn_probability'] >= 0.5]
+                logger.info(f"Loaded user data from {users_path}")
+            else:
+                # 데이터가 없으면 합성 데이터 생성 및 저장
+                logger.info("No user data found. Creating synthetic data...")
+                n_users = 1000
+                np.random.seed(42)  # 재현성을 위한 시드 설정
+                
+                # 사용자 특성 생성
+                data['users'] = pd.DataFrame({
+                    'user_id': range(1, n_users + 1),
+                    'age': np.random.randint(18, 70, n_users),
+                    'gender': np.random.choice(['M', 'F', 'Other'], n_users, p=[0.48, 0.48, 0.04]),
+                    'subscription_type': np.random.choice(['Basic', 'Standard', 'Premium'], n_users, p=[0.4, 0.4, 0.2]),
+                    'tenure_months': np.random.randint(1, 60, n_users),
+                    'weekly_viewing_hours': np.clip(np.random.normal(10, 5, n_users), 0, 40),
+                    'content_diversity': np.random.randint(1, 10, n_users),
+                    'price_increase': np.random.choice([0, 1], n_users, p=[0.7, 0.3]),
+                    'technical_issues': np.random.poisson(0.5, n_users),
+                    'customer_service_calls': np.random.poisson(0.3, n_users),
+                    'account_sharing': np.random.choice([0, 1], n_users, p=[0.6, 0.4]),
+                    'competing_services': np.random.randint(0, 5, n_users),
+                    'last_login_days': np.random.randint(0, 30, n_users),
+                    'binge_watching': np.random.choice([0, 1], n_users, p=[0.6, 0.4]),
+                    'user_rating': np.random.uniform(1, 5, n_users),
+                    'recommended_content_watched': np.random.uniform(0, 1, n_users),
+                    'signup_date': pd.date_range(end=pd.Timestamp.now(), periods=n_users),
+                    'region': np.random.choice(['North America', 'Europe', 'Asia', 'Latin America', 'Oceania'], n_users),
+                    'device_type': np.random.choice(['Mobile', 'TV', 'Computer', 'Tablet'], n_users),
+                })
+                
+                # 이탈률 계산을 위한 로직
+                churn_prob = (
+                    0.5 - 0.02 * data['users']['weekly_viewing_hours'] / 10
+                    - 0.02 * data['users']['tenure_months'] / 12
+                    + 0.15 * data['users']['price_increase']
+                    + 0.08 * (data['users']['technical_issues'] > 1)
+                    + 0.05 * data['users']['competing_services'] / 2
+                    - 0.1 * data['users']['user_rating'] / 5
+                    - 0.05 * data['users']['recommended_content_watched']
+                    + 0.02 * (data['users']['subscription_type'] == 'Basic')
+                    + 0.01 * data['users']['last_login_days'] / 7
+                    - 0.03 * data['users']['content_diversity'] / 5
+                    - 0.04 * data['users']['binge_watching']
+                )
+                # 확률 값 0-1 범위로 조정
+                data['users']['churn_probability'] = np.clip(churn_prob, 0.05, 0.95)
+                
+                # CSV 파일로 저장 시도
+                try:
+                    os.makedirs(os.path.dirname(users_path), exist_ok=True)
+                    data['users'].to_csv(users_path, index=False)
+                    logger.info(f"Generated synthetic user data and saved to {users_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save synthetic data: {e}")
+                
+                # 이탈 위험 사용자 식별
+                data['at_risk_users'] = data['users'][data['users']['churn_probability'] >= 0.5]
         except Exception as e:
-            logger.error(f"Error loading data and models: {e}")
-            # 기본값 유지, 앱은 계속 실행
+            logger.error(f"Failed to load or create user data: {e}")
+            # 기본 사용자 데이터 생성
+            data['users'] = pd.DataFrame({'user_id': [1], 'churn_probability': [0.5]})
+            data['at_risk_users'] = data['users']
         
-        # 정적 이미지 폴더 생성
+        # 시각화 이미지 경로 설정 - 항상 설정되도록 보장
+        data['visualization_paths'] = {
+            'genre_distribution': '/static/images/genre_distribution.png',
+            'shap_summary': '/static/images/shap_summary.png'
+        }
+        
+        # 모델 로드 시도 - 실패해도 계속 진행
         try:
-            os.makedirs(os.path.join(app.static_folder, 'images'), exist_ok=True)
+            best_model_path = os.path.join(models_dir, 'best_model.joblib')
+            if os.path.exists(best_model_path):
+                models['churn_model'] = joblib.load(best_model_path)
+                logger.info("Loaded churn prediction model")
+            else:
+                logger.warning("No pre-trained model found. Creating a simple default model.")
+                if len(data['users']) > 1:  # 충분한 데이터가 있는 경우에만
+                    models['churn_model'] = create_default_model(data['users'])
+        except Exception as e:
+            logger.error(f"Failed to load or create model: {e}")
+        
+        # 정적 이미지 폴더 확인 및 생성
+        try:
+            images_dir = os.path.join(app.static_folder, 'images')
+            os.makedirs(images_dir, exist_ok=True)
             
-            # 장르 분포 차트 생성
-            genre_target = os.path.join(app.static_folder, 'images', 'genre_distribution.png')
-            data['visualization_paths']['genre_distribution'] = '/static/images/genre_distribution.png'
-            
+            # 장르 분포 차트 파일 존재 확인 및 생성
+            genre_target = os.path.join(images_dir, 'genre_distribution.png')
             if not os.path.exists(genre_target):
                 try:
-                    # 장르 분포 차트 생성 시도
                     create_genre_distribution_chart()
                 except Exception as e:
-                    logger.error(f"Error creating genre distribution chart: {e}")
+                    logger.error(f"Failed to create genre distribution chart: {e}")
+                    # 오류 발생 시 더미 차트 생성
+                    create_dummy_chart(genre_target, "Genre Distribution")
             
-            # 샘플 추천 결과는 필요한 경우에만 생성
-            if 'at_risk_users' in data and not data['at_risk_users'].empty:
-                try:
-                    # 사용자별 추천 샘플 생성
-                    at_risk_users = data['at_risk_users']['user_id'].head(5).tolist()
-                    for user_id in at_risk_users:
-                        rec_path = os.path.join(app.static_folder, 'images', f'user_{user_id}_recommendations.png')
-                        
-                        if not os.path.exists(rec_path):
-                            try:
-                                # 추천 차트 생성 시도
-                                create_user_recommendations(user_id)
-                                # 링크 설정
-                                data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
-                            except Exception as e:
-                                logger.error(f"Error creating recommendations for user {user_id}: {e}")
-                        else:
-                            # 파일이 이미 존재하면 링크만 설정
-                            data['sample_recommendations'][user_id] = f'/static/images/user_{user_id}_recommendations.png'
-                except Exception as e:
-                    logger.error(f"Error processing recommendations: {e}")
+            # 코호트 분석 데이터 준비
+            try:
+                data['cohorts'] = prepare_cohort_data(data['users'])
+            except Exception as e:
+                logger.error(f"Failed to prepare cohort data: {e}")
+                data['cohorts'] = {'monthly': pd.DataFrame(), 'subscription': pd.DataFrame(), 
+                                   'region': pd.DataFrame(), 'device': pd.DataFrame(), 'tenure': pd.DataFrame()}
+        
         except Exception as e:
-            logger.error(f"Error setting up static resources: {e}")
+            logger.error(f"Failed to set up static resources: {e}")
     
     except Exception as e:
         logger.error(f"Critical error in app initialization: {e}")
         # 앱은 계속 실행되지만, 기본적인 데이터 구조만 유지
+
+def create_dummy_chart(filepath, title="Chart Not Available"):
+    """데이터 로드 실패 시 더미 차트 생성"""
+    try:
+        plt.figure(figsize=(10, 6))
+        plt.text(0.5, 0.5, f"{title}\nData not available", 
+                horizontalalignment='center', verticalalignment='center',
+                transform=plt.gca().transAxes, fontsize=14)
+        plt.axis('off')
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=100, bbox_inches='tight')
+        plt.close()
+        logger.info(f"Created dummy chart at {filepath}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to create dummy chart: {e}")
+        return False
 
 @app.route('/model-comparison')
 def model_comparison():
