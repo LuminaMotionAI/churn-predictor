@@ -1,20 +1,16 @@
 """
-Render.com deployment entry point
+WSGI 진입점 - Render.com 배포용
 """
 import sys
 import os
 
-# 프로젝트 경로 추가
-project_home = os.path.expanduser('~/churn-predictor')
-if project_home not in sys.path:
-    sys.path.insert(0, project_home)
-
 # 앱 초기화
 from app.app import app
 
-# Render.com에서는 PORT 환경변수를 제공합니다
-port = int(os.environ.get("PORT", 8080))
+# 표준 WSGI application 변수 설정 (gunicorn이 이 이름을 찾음)
+application = app
 
-# WSGI 애플리케이션
+# 개발 환경을 위한 테스트 실행 코드
 if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 8080))
     app.run(host='0.0.0.0', port=port) 
