@@ -465,252 +465,442 @@ models = {}
 @app.route('/')
 def home():
     """홈페이지"""
-    # 현재 시간 추가 (상태 표시용)
-    now = datetime.now()
-    
-    return render_template('index.html', 
-                          total_users=len(data['users']),
-                          at_risk_count=len(data['at_risk_users']),
-                          at_risk_percentage=round(len(data['at_risk_users']) / len(data['users']) * 100, 1),
-                          now=now)
+    try:
+        # 현재 시간 추가 (상태 표시용)
+        now = datetime.now()
+        
+        # 기본값 설정
+        total_users = 0
+        at_risk_count = 0
+        at_risk_percentage = 0.0
+        
+        # 데이터 안전하게 접근
+        if data and isinstance(data, dict):
+            if 'users' in data and isinstance(data['users'], pd.DataFrame) and not data['users'].empty:
+                total_users = len(data['users'])
+                
+                if 'at_risk_users' in data and isinstance(data['at_risk_users'], pd.DataFrame):
+                    at_risk_count = len(data['at_risk_users'])
+                    
+                    if total_users > 0:
+                        at_risk_percentage = round(at_risk_count / total_users * 100, 1)
+        
+        return render_template('index.html', 
+                             total_users=total_users,
+                             at_risk_count=at_risk_count,
+                             at_risk_percentage=at_risk_percentage,
+                             now=now)
+    except Exception as e:
+        logger.error(f"Error in home route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="홈페이지를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "홈페이지를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/dashboard')
 def dashboard():
     """메인 대시보드 페이지"""
-    # 구독 유형별 이탈률
-    subscription_churn = data['users'].groupby('subscription_type')['churn_probability'].mean().reset_index()
-    subscription_churn['churn_percentage'] = subscription_churn['churn_probability'] * 100
+    try:
+        # 기본값 설정
+        subscription_churn = []
+        tenure_churn = []
+        viewing_churn = []
+        feature_importance = [
+            {"feature": "Weekly Viewing Hours", "importance": 0.35},
+            {"feature": "Tenure Months", "importance": 0.25},
+            {"feature": "Content Diversity", "importance": 0.15},
+            {"feature": "Price Increase", "importance": 0.15},
+            {"feature": "Technical Issues", "importance": 0.10}
+        ]
+        top_at_risk = []
+        at_risk_users = []
+        avg_retention = "0.0m"
+        
+        # 데이터 안전하게 접근
+        if data and isinstance(data, dict) and 'users' in data and isinstance(data['users'], pd.DataFrame) and not data['users'].empty:
+            users_df = data['users']
+            
+            try:
+                # 구독 유형별 이탈률
+                if 'subscription_type' in users_df.columns and 'churn_probability' in users_df.columns:
+                    subscription_churn = users_df.groupby('subscription_type')['churn_probability'].mean().reset_index()
+                    subscription_churn['churn_percentage'] = subscription_churn['churn_probability'] * 100
+                
+                # 사용 기간별 이탈률
+                if 'tenure_months' in users_df.columns:
+                    tenure_bins = [0, 3, 6, 12, 24, 60]
+                    tenure_labels = ['0-3', '4-6', '7-12', '13-24', '25+']
+                    users_df['tenure_group'] = pd.cut(users_df['tenure_months'], bins=tenure_bins, labels=tenure_labels)
+                    tenure_churn = users_df.groupby('tenure_group')['churn_probability'].mean().reset_index()
+                    tenure_churn['churn_percentage'] = tenure_churn['churn_probability'] * 100
+                
+                # 주간 시청 시간별 이탈률
+                if 'weekly_viewing_hours' in users_df.columns:
+                    viewing_bins = [0, 2, 5, 10, 15, 50]
+                    viewing_labels = ['0-2', '3-5', '6-10', '11-15', '15+']
+                    users_df['viewing_group'] = pd.cut(users_df['weekly_viewing_hours'], bins=viewing_bins, labels=viewing_labels)
+                    viewing_churn = users_df.groupby('viewing_group')['churn_probability'].mean().reset_index()
+                    viewing_churn['churn_percentage'] = viewing_churn['churn_probability'] * 100
+                
+                # 이탈 위험 상위 20명
+                if 'churn_probability' in users_df.columns:
+                    top_at_risk = users_df.sort_values('churn_probability', ascending=False).head(20)
+                
+                # 평균 유지 기간 계산
+                if 'tenure_months' in users_df.columns:
+                    avg_retention = f"{users_df['tenure_months'].mean():.1f}m"
+            except Exception as e:
+                logger.error(f"Error processing dashboard data: {e}")
+            
+            # 이탈 위험 사용자
+            if 'at_risk_users' in data and isinstance(data['at_risk_users'], pd.DataFrame):
+                at_risk_users = data['at_risk_users']
+        
+        # 안전하게 딕셔너리로 변환
+        try:
+            subscription_churn_dict = subscription_churn.to_dict('records') if isinstance(subscription_churn, pd.DataFrame) else []
+            tenure_churn_dict = tenure_churn.to_dict('records') if isinstance(tenure_churn, pd.DataFrame) else []
+            viewing_churn_dict = viewing_churn.to_dict('records') if isinstance(viewing_churn, pd.DataFrame) else []
+            top_at_risk_dict = top_at_risk.to_dict('records') if isinstance(top_at_risk, pd.DataFrame) else []
+            at_risk_users_dict = at_risk_users.to_dict('records') if isinstance(at_risk_users, pd.DataFrame) else []
+        except Exception as e:
+            logger.error(f"Error converting DataFrames to dictionaries: {e}")
+            subscription_churn_dict = []
+            tenure_churn_dict = []
+            viewing_churn_dict = []
+            top_at_risk_dict = []
+            at_risk_users_dict = []
+        
+        return render_template('dashboard.html',
+                             subscription_churn=subscription_churn_dict,
+                             tenure_churn=tenure_churn_dict,
+                             viewing_churn=viewing_churn_dict,
+                             feature_importance=feature_importance,
+                             top_at_risk=top_at_risk_dict,
+                             at_risk_users=at_risk_users_dict,
+                             avg_retention=avg_retention)
+    except Exception as e:
+        logger.error(f"Error in dashboard route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="대시보드를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "대시보드를 표시하는 중 문제가 발생했습니다.", 500
+
+@app.route('/user/<int:user_id>')
+def user_detail(user_id):
+    """사용자 상세 정보 페이지"""
+    try:
+        # 기본값 설정
+        user_data = None
+        user_recommendation = None
+        shap_data = None
+        retention_strategies = []
+        
+        # 데이터 안전하게 접근
+        if data and isinstance(data, dict) and 'users' in data and isinstance(data['users'], pd.DataFrame):
+            # 사용자 정보 가져오기
+            user = data['users'][data['users']['user_id'] == user_id]
+            
+            if not user.empty:
+                user_data = user.iloc[0].to_dict()
+                
+                # 사용자 추천 정보
+                if 'sample_recommendations' in data and isinstance(data['sample_recommendations'], dict):
+                    user_recommendation = data['sample_recommendations'].get(user_id)
+                
+                # SHAP 값 계산 (모델 설명)
+                if models and isinstance(models, dict) and 'explainer' in models and 'churn_model' in models:
+                    try:
+                        shap_data = get_user_shap_values(user_id, data['users'], models['churn_model'], models['explainer'])
+                    except Exception as e:
+                        logger.error(f"Error calculating SHAP values: {e}")
+                
+                # 이탈 방지 전략 추천
+                try:
+                    retention_strategies = recommend_retention_strategies(user_data)
+                except Exception as e:
+                    logger.error(f"Error recommending retention strategies: {e}")
+        
+        # 사용자가 없으면 대시보드로 리디렉션
+        if not user_data:
+            return redirect(url_for('dashboard'))
+        
+        return render_template('user_detail.html',
+                             user=user_data,
+                             user_recommendation=user_recommendation,
+                             shap_data=shap_data,
+                             retention_strategies=retention_strategies)
     
-    # 사용 기간별 이탈률
-    tenure_bins = [0, 3, 6, 12, 24, 60]
-    tenure_labels = ['0-3', '4-6', '7-12', '13-24', '25+']
-    data['users']['tenure_group'] = pd.cut(data['users']['tenure_months'], bins=tenure_bins, labels=tenure_labels)
-    tenure_churn = data['users'].groupby('tenure_group')['churn_probability'].mean().reset_index()
-    tenure_churn['churn_percentage'] = tenure_churn['churn_probability'] * 100
-    
-    # 주간 시청 시간별 이탈률
-    viewing_bins = [0, 2, 5, 10, 15, 50]
-    viewing_labels = ['0-2', '3-5', '6-10', '11-15', '15+']
-    data['users']['viewing_group'] = pd.cut(data['users']['weekly_viewing_hours'], bins=viewing_bins, labels=viewing_labels)
-    viewing_churn = data['users'].groupby('viewing_group')['churn_probability'].mean().reset_index()
-    viewing_churn['churn_percentage'] = viewing_churn['churn_probability'] * 100
-    
-    # 이탈 위험 상위 20명
-    top_at_risk = data['users'].sort_values('churn_probability', ascending=False).head(20)
-    
-    # 평균 유지 기간 계산
-    avg_retention = f"{data['users']['tenure_months'].mean():.1f}m"
-    
-    # 특성 중요도 데이터 생성
-    feature_importance = [
-        {"feature": "Weekly Viewing Hours", "importance": 0.35},
-        {"feature": "Tenure Months", "importance": 0.25},
-        {"feature": "Content Diversity", "importance": 0.15},
-        {"feature": "Price Increase", "importance": 0.15},
-        {"feature": "Technical Issues", "importance": 0.10}
-    ]
-    
-    return render_template('dashboard.html',
-                          subscription_churn=subscription_churn.to_dict('records'),
-                          tenure_churn=tenure_churn.to_dict('records'),
-                          viewing_churn=viewing_churn.to_dict('records'),
-                          feature_importance=feature_importance,
-                          top_at_risk=top_at_risk.to_dict('records'),
-                          at_risk_users=data['at_risk_users'].to_dict('records'),
-                          avg_retention=avg_retention)
+    except Exception as e:
+        logger.error(f"Error in user_detail route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="사용자 정보를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "사용자 정보를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/recommendations')
 def recommendations():
     """추천 시스템 결과 페이지"""
     try:
-        # 추천 시스템 시각화를 안전하게 렌더링하기 위한 예외 처리
+        # 기본 빈 데이터로 초기화
         sample_recommendations = {}
         genre_distribution = None
         
-        # data 딕셔너리가 존재하는지 확인
-        if 'sample_recommendations' in data:
-            sample_recommendations = data['sample_recommendations']
-        
-        # visualization_paths가 존재하는지 확인
-        if 'visualization_paths' in data and 'genre_distribution' in data['visualization_paths']:
-            genre_distribution = data['visualization_paths'].get('genre_distribution')
+        # 안전하게 데이터 접근
+        if data and isinstance(data, dict):
+            # 샘플 추천 데이터 확인
+            if 'sample_recommendations' in data and isinstance(data['sample_recommendations'], dict):
+                sample_recommendations = data['sample_recommendations']
             
-            # 파일이 실제로 존재하는지 확인
-            genre_file_path = os.path.join(app.static_folder, 'images', 'genre_distribution.png')
-            if not os.path.exists(genre_file_path):
-                # 파일이 없으면 경로를 None으로 설정
-                genre_distribution = None
+            # 시각화 경로 확인
+            if 'visualization_paths' in data and isinstance(data['visualization_paths'], dict):
+                if 'genre_distribution' in data['visualization_paths']:
+                    genre_path = data['visualization_paths']['genre_distribution']
+                    # 경로 형식이 올바른지 확인
+                    if isinstance(genre_path, str) and genre_path.startswith('/static/'):
+                        genre_distribution = genre_path
         
+        # 파일 실제 존재 여부 확인
+        if genre_distribution:
+            # 상대 경로에서 절대 경로로 변환
+            file_path = os.path.join(app.static_folder, genre_distribution.replace('/static/', ''))
+            if not os.path.exists(file_path):
+                # 파일이 없으면 더미 차트 생성 시도
+                try:
+                    dummy_dir = os.path.dirname(file_path)
+                    os.makedirs(dummy_dir, exist_ok=True)
+                    create_dummy_chart(file_path, "Genre Distribution")
+                except:
+                    # 더미 차트 생성 실패 시 None으로 설정
+                    genre_distribution = None
+        
+        # 페이지 렌더링
         return render_template('recommendations.html',
-                              sample_recommendations=sample_recommendations,
-                              genre_distribution=genre_distribution)
+                             sample_recommendations=sample_recommendations,
+                             genre_distribution=genre_distribution)
+    
     except Exception as e:
-        logger.error(f"Error rendering recommendations page: {e}")
-        # 간단한 오류 페이지 렌더링
-        return render_template('error.html', 
-                              error_message="Could not load recommendations. Please try again later.",
-                              status_code=500), 500
-
-@app.route('/user/<int:user_id>')
-def user_detail(user_id):
-    """사용자 상세 정보 페이지"""
-    # 사용자 정보 가져오기
-    user = data['users'][data['users']['user_id'] == user_id]
-    
-    if user.empty:
-        return redirect(url_for('dashboard'))
-    
-    user_data = user.iloc[0].to_dict()
-    
-    # 사용자 추천 정보
-    user_recommendation = data['sample_recommendations'].get(user_id)
-    
-    # SHAP 값 계산 (모델 설명)
-    shap_data = None
-    if 'explainer' in models:
-        shap_data = get_user_shap_values(user_id, data['users'], models['churn_model'], models['explainer'])
-    
-    # 이탈 방지 전략 추천
-    retention_strategies = recommend_retention_strategies(user_data)
-    
-    return render_template('user_detail.html',
-                          user=user_data,
-                          user_recommendation=user_recommendation,
-                          shap_data=shap_data,
-                          retention_strategies=retention_strategies)
+        # 모든 예외 로깅
+        logger.error(f"Error in recommendations route: {e}", exc_info=True)
+        
+        # 오류 페이지 렌더링
+        try:
+            return render_template('error.html', 
+                                 error_message="추천 시스템을 표시하는 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.",
+                                 status_code=500), 500
+        except:
+            # 최후의 수단으로 간단한 오류 메시지 반환
+            return "추천 시스템을 표시하는 중 문제가 발생했습니다. 나중에 다시 시도해 주세요.", 500
 
 @app.route('/simulate')
 def simulation():
     """이탈 방지 전략 시뮬레이션 페이지"""
-    return render_template('simulate.html')
+    try:
+        return render_template('simulate.html')
+    except Exception as e:
+        logger.error(f"Error in simulation route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="시뮬레이션 페이지를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "시뮬레이션 페이지를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/cohort-analysis')
 def cohort_analysis():
     """코호트 분석 페이지"""
-    return render_template('cohort-analysis.html')
+    try:
+        return render_template('cohort-analysis.html')
+    except Exception as e:
+        logger.error(f"Error in cohort_analysis route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="코호트 분석 페이지를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "코호트 분석 페이지를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/api-docs')
 def api_docs():
     """API 문서 페이지"""
-    return render_template('api-docs.html')
+    try:
+        return render_template('api-docs.html')
+    except Exception as e:
+        logger.error(f"Error in api_docs route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="API 문서 페이지를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "API 문서 페이지를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/api/churn-data')
 def churn_data_api():
     """이탈률 데이터 API"""
-    # Get filter parameters from query string
-    subscription_type = request.args.get('subscription_type', 'all')
-    tenure = request.args.get('tenure', 'all')
-    viewing_hours = request.args.get('viewing_hours', 'all')
-    risk_level = request.args.get('risk_level', 'all')
+    try:
+        # 기본값 설정
+        total_users = 0
+        at_risk_count = 0
+        at_risk_percentage = 0
+        subscription_distribution = {}
+        tenure_distribution = {}
+        
+        # 필터 파라미터 가져오기
+        subscription_type = request.args.get('subscription_type', 'all')
+        tenure = request.args.get('tenure', 'all')
+        viewing_hours = request.args.get('viewing_hours', 'all')
+        risk_level = request.args.get('risk_level', 'all')
+        
+        # 안전하게 데이터 접근
+        if data and isinstance(data, dict) and 'users' in data and isinstance(data['users'], pd.DataFrame) and not data['users'].empty:
+            # 데이터 복사
+            try:
+                filtered_users = data['users'].copy()
+                
+                # 필터 적용
+                if subscription_type != 'all' and 'subscription_type' in filtered_users.columns:
+                    filtered_users = filtered_users[filtered_users['subscription_type'] == subscription_type]
+                
+                if tenure != 'all' and 'tenure_months' in filtered_users.columns:
+                    if tenure == '0-3':
+                        filtered_users = filtered_users[filtered_users['tenure_months'] <= 3]
+                    elif tenure == '4-6':
+                        filtered_users = filtered_users[(filtered_users['tenure_months'] > 3) & (filtered_users['tenure_months'] <= 6)]
+                    elif tenure == '7-12':
+                        filtered_users = filtered_users[(filtered_users['tenure_months'] > 6) & (filtered_users['tenure_months'] <= 12)]
+                    elif tenure == '13-24':
+                        filtered_users = filtered_users[(filtered_users['tenure_months'] > 12) & (filtered_users['tenure_months'] <= 24)]
+                    elif tenure == '25+':
+                        filtered_users = filtered_users[filtered_users['tenure_months'] > 24]
+                
+                if viewing_hours != 'all' and 'weekly_viewing_hours' in filtered_users.columns:
+                    if viewing_hours == '0-2':
+                        filtered_users = filtered_users[filtered_users['weekly_viewing_hours'] <= 2]
+                    elif viewing_hours == '3-5':
+                        filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 2) & (filtered_users['weekly_viewing_hours'] <= 5)]
+                    elif viewing_hours == '6-10':
+                        filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 5) & (filtered_users['weekly_viewing_hours'] <= 10)]
+                    elif viewing_hours == '11-15':
+                        filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 10) & (filtered_users['weekly_viewing_hours'] <= 15)]
+                    elif viewing_hours == '15+':
+                        filtered_users = filtered_users[filtered_users['weekly_viewing_hours'] > 15]
+                
+                if risk_level != 'all' and 'churn_probability' in filtered_users.columns:
+                    if risk_level == 'high':
+                        filtered_users = filtered_users[filtered_users['churn_probability'] > 0.7]
+                    elif risk_level == 'medium':
+                        filtered_users = filtered_users[(filtered_users['churn_probability'] >= 0.3) & (filtered_users['churn_probability'] <= 0.7)]
+                    elif risk_level == 'low':
+                        filtered_users = filtered_users[filtered_users['churn_probability'] < 0.3]
+                
+                # 통계 계산
+                if 'churn_probability' in filtered_users.columns:
+                    filtered_at_risk = filtered_users[filtered_users['churn_probability'] >= 0.5]
+                    total_users = len(filtered_users)
+                    at_risk_count = len(filtered_at_risk)
+                    at_risk_percentage = round(at_risk_count / total_users * 100, 1) if total_users > 0 else 0
+                
+                # 구독 분포
+                if 'subscription_type' in filtered_users.columns:
+                    subscription_distribution = filtered_users['subscription_type'].value_counts().to_dict()
+                
+                # 사용 기간 통계
+                if 'tenure_months' in filtered_users.columns:
+                    tenure_distribution = filtered_users['tenure_months'].describe().to_dict()
+            
+            except Exception as e:
+                logger.error(f"Error filtering data: {e}")
+        
+        # JSON 형식으로 데이터 반환
+        return jsonify({
+            'total_users': total_users,
+            'at_risk_count': at_risk_count,
+            'at_risk_percentage': at_risk_percentage,
+            'subscription_distribution': subscription_distribution,
+            'tenure_distribution': tenure_distribution,
+            'timestamp': datetime.now().isoformat()
+        })
     
-    # Start with all users
-    filtered_users = data['users'].copy()
-    
-    # Apply filters
-    if subscription_type != 'all':
-        filtered_users = filtered_users[filtered_users['subscription_type'] == subscription_type]
-    
-    if tenure != 'all':
-        if tenure == '0-3':
-            filtered_users = filtered_users[filtered_users['tenure_months'] <= 3]
-        elif tenure == '4-6':
-            filtered_users = filtered_users[(filtered_users['tenure_months'] > 3) & (filtered_users['tenure_months'] <= 6)]
-        elif tenure == '7-12':
-            filtered_users = filtered_users[(filtered_users['tenure_months'] > 6) & (filtered_users['tenure_months'] <= 12)]
-        elif tenure == '13-24':
-            filtered_users = filtered_users[(filtered_users['tenure_months'] > 12) & (filtered_users['tenure_months'] <= 24)]
-        elif tenure == '25+':
-            filtered_users = filtered_users[filtered_users['tenure_months'] > 24]
-    
-    if viewing_hours != 'all':
-        if viewing_hours == '0-2':
-            filtered_users = filtered_users[filtered_users['weekly_viewing_hours'] <= 2]
-        elif viewing_hours == '3-5':
-            filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 2) & (filtered_users['weekly_viewing_hours'] <= 5)]
-        elif viewing_hours == '6-10':
-            filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 5) & (filtered_users['weekly_viewing_hours'] <= 10)]
-        elif viewing_hours == '11-15':
-            filtered_users = filtered_users[(filtered_users['weekly_viewing_hours'] > 10) & (filtered_users['weekly_viewing_hours'] <= 15)]
-        elif viewing_hours == '15+':
-            filtered_users = filtered_users[filtered_users['weekly_viewing_hours'] > 15]
-    
-    if risk_level != 'all':
-        if risk_level == 'high':
-            filtered_users = filtered_users[filtered_users['churn_probability'] > 0.7]
-        elif risk_level == 'medium':
-            filtered_users = filtered_users[(filtered_users['churn_probability'] >= 0.3) & (filtered_users['churn_probability'] <= 0.7)]
-        elif risk_level == 'low':
-            filtered_users = filtered_users[filtered_users['churn_probability'] < 0.3]
-    
-    # Calculate metrics based on filtered data
-    filtered_at_risk = filtered_users[filtered_users['churn_probability'] >= 0.5]
-    total_users = len(filtered_users)
-    at_risk_count = len(filtered_at_risk)
-    at_risk_percentage = round(at_risk_count / total_users * 100, 1) if total_users > 0 else 0
-    
-    # JSON 형식으로 데이터 반환
-    return jsonify({
-        'total_users': total_users,
-        'at_risk_count': at_risk_count,
-        'at_risk_percentage': at_risk_percentage,
-        'subscription_distribution': filtered_users['subscription_type'].value_counts().to_dict(),
-        'tenure_distribution': filtered_users['tenure_months'].describe().to_dict(),
-        'timestamp': datetime.now().isoformat()
-    })
+    except Exception as e:
+        logger.error(f"Error in churn_data_api route: {e}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
+        }), 500
 
 @app.route('/api/predict-churn', methods=['POST'])
 def predict_churn_api():
     """이탈 예측 API"""
-    user_data = request.json
-    
-    if not user_data:
-        return jsonify({
-            'error': 'No user data provided',
-            'status': 'error'
-        }), 400
-    
     try:
-        # 입력 데이터 준비
-        input_df = pd.DataFrame([user_data])
+        user_data = request.json
         
-        # 필요한 특성만 선택
-        required_features = ['weekly_viewing_hours', 'tenure_months', 'content_diversity', 
-                            'price_increase', 'technical_issues', 'customer_service_calls',
-                            'user_rating', 'recommended_content_watched', 'competing_services']
+        if not user_data:
+            return jsonify({
+                'error': 'No user data provided',
+                'status': 'error'
+            }), 400
         
-        # 모든 필수 특성이 있는지 확인
-        for feature in required_features:
-            if feature not in input_df.columns:
+        try:
+            # 입력 데이터 준비
+            input_df = pd.DataFrame([user_data])
+            
+            # 필요한 특성만 선택
+            required_features = ['weekly_viewing_hours', 'tenure_months', 'content_diversity', 
+                              'price_increase', 'technical_issues', 'customer_service_calls',
+                              'user_rating', 'recommended_content_watched', 'competing_services']
+            
+            # 모든 필수 특성이 있는지 확인
+            for feature in required_features:
+                if feature not in input_df.columns:
+                    return jsonify({
+                        'error': f'Missing required feature: {feature}',
+                        'status': 'error'
+                    }), 400
+            
+            # 모델 및 데이터 확인
+            if not models or not isinstance(models, dict) or 'churn_model' not in models:
                 return jsonify({
-                    'error': f'Missing required feature: {feature}',
+                    'error': 'No prediction model available',
                     'status': 'error'
-                }), 400
-        
-        # 범주형 특성 처리
-        for col in input_df.select_dtypes(include=['object']).columns:
-            input_df[col] = input_df[col].astype('category').cat.codes
-        
-        # 예측 수행
-        if 'churn_model' in models:
-            # 이탈 확률 예측
-            churn_prob = models['churn_model'].predict_proba(input_df[required_features])[0, 1]
+                }), 500
             
-            # 앙상블 모델이 있으면 앙상블 예측 수행
-            ensemble_probs = []
-            if 'ensemble' in models and models['ensemble']:
-                for model_name, model in models['ensemble'].items():
-                    try:
-                        prob = model.predict_proba(input_df[required_features])[0, 1]
-                        ensemble_probs.append(prob)
-                    except:
-                        pass
+            # 범주형 특성 처리
+            for col in input_df.select_dtypes(include=['object']).columns:
+                input_df[col] = input_df[col].astype('category').cat.codes
             
-            # 앙상블 평균 계산 (가중치 적용 가능)
-            if ensemble_probs:
-                ensemble_avg = sum(ensemble_probs) / len(ensemble_probs)
-                # 기본 모델과 앙상블 모델의 가중 평균 (기본 모델에 더 높은 가중치)
-                final_prob = (churn_prob * 0.6) + (ensemble_avg * 0.4)
-            else:
+            # 예측 수행
+            churn_prob = 0.5  # 기본값
+            
+            try:
+                # 이탈 확률 예측
+                churn_prob = models['churn_model'].predict_proba(input_df[required_features])[0, 1]
+                
+                # 앙상블 모델이 있으면 앙상블 예측 수행
+                ensemble_probs = []
+                if 'ensemble' in models and models['ensemble'] and isinstance(models['ensemble'], dict):
+                    for model_name, model in models['ensemble'].items():
+                        try:
+                            prob = model.predict_proba(input_df[required_features])[0, 1]
+                            ensemble_probs.append(prob)
+                        except Exception as e:
+                            logger.error(f"Error in ensemble prediction with {model_name}: {e}")
+                
+                # 앙상블 평균 계산 (가중치 적용 가능)
+                if ensemble_probs:
+                    ensemble_avg = sum(ensemble_probs) / len(ensemble_probs)
+                    # 기본 모델과 앙상블 모델의 가중 평균 (기본 모델에 더 높은 가중치)
+                    final_prob = (churn_prob * 0.6) + (ensemble_avg * 0.4)
+                else:
+                    final_prob = churn_prob
+            except Exception as e:
+                logger.error(f"Error in prediction: {e}")
+                # 예측 오류 시 기본값 사용
                 final_prob = churn_prob
             
             # 이탈 위험 수준 결정
@@ -724,16 +914,23 @@ def predict_churn_api():
                     feature_importance = list(zip(required_features, shap_values.values))
                     # 양수 값은 이탈 가능성을 높이는 요인
                     positive_factors = sorted([(f, v) for f, v in feature_importance if v > 0], 
-                                           key=lambda x: x[1], reverse=True)
+                                         key=lambda x: x[1], reverse=True)
                     churn_factors = [f for f, _ in positive_factors[:3]]
-                except:
-                    # SHAP 분석 실패 시 간단한 휴리스틱 사용
+                except Exception as e:
+                    logger.error(f"Error in SHAP calculation: {e}")
+            
+            # SHAP 분석 실패 시 간단한 휴리스틱 사용
+            if not churn_factors:
+                try:
                     if input_df['weekly_viewing_hours'].iloc[0] < 5:
                         churn_factors.append('low_engagement')
                     if input_df['tenure_months'].iloc[0] < 3:
                         churn_factors.append('new_user')
                     if input_df['price_increase'].iloc[0] == 1:
                         churn_factors.append('price_sensitivity')
+                except Exception as e:
+                    logger.error(f"Error in heuristic factor determination: {e}")
+                    churn_factors = ['unknown']
             
             return jsonify({
                 'user_id': user_data.get('user_id', 'unknown'),
@@ -742,13 +939,16 @@ def predict_churn_api():
                 'churn_factors': churn_factors,
                 'status': 'success'
             })
-        else:
+        
+        except Exception as e:
+            logger.error(f"Error in churn prediction processing: {e}")
             return jsonify({
-                'error': 'No prediction model available',
+                'error': f'Error processing prediction: {str(e)}',
                 'status': 'error'
             }), 500
+    
     except Exception as e:
-        logger.error(f"Error in churn prediction: {e}")
+        logger.error(f"Error in churn prediction API: {e}", exc_info=True)
         return jsonify({
             'error': str(e),
             'status': 'error'
@@ -780,77 +980,137 @@ def user_shap_api(user_id):
 @app.route('/api/cohort-data', methods=['GET'])
 def cohort_data_api():
     """코호트 데이터 API"""
-    cohort_type = request.args.get('type', 'monthly')
-    if cohort_type not in data['cohorts']:
+    try:
+        cohort_type = request.args.get('type', 'monthly')
+        
+        # 데이터 확인
+        if not data or not isinstance(data, dict) or 'cohorts' not in data or not isinstance(data['cohorts'], dict):
+            return jsonify({
+                'error': 'Cohort data not available',
+                'status': 'error',
+                'cohort_type': cohort_type,
+                'cohort_data': []
+            }), 404
+        
+        # 요청된 코호트 타입 확인
+        if cohort_type not in data['cohorts']:
+            return jsonify({
+                'error': f'Unknown cohort type: {cohort_type}',
+                'status': 'error',
+                'cohort_type': cohort_type,
+                'available_types': list(data['cohorts'].keys())
+            }), 400
+        
+        try:
+            # 안전하게 변환
+            cohort_data = []
+            if isinstance(data['cohorts'][cohort_type], pd.DataFrame):
+                cohort_data = data['cohorts'][cohort_type].to_dict('records')
+        except Exception as e:
+            logger.error(f"Error converting cohort data: {e}")
+            cohort_data = []
+        
         return jsonify({
-            'error': f'Unknown cohort type: {cohort_type}',
-            'status': 'error'
-        }), 400
+            'cohort_type': cohort_type,
+            'cohort_data': cohort_data,
+            'status': 'success'
+        })
     
-    return jsonify({
-        'cohort_type': cohort_type,
-        'cohort_data': data['cohorts'][cohort_type].to_dict('records'),
-        'status': 'success'
-    })
+    except Exception as e:
+        logger.error(f"Error in cohort data API: {e}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'status': 'error',
+            'cohort_type': request.args.get('type', 'monthly'),
+            'cohort_data': []
+        }), 500
 
 @app.route('/simulate-retention-strategy', methods=['POST'])
 def simulate_retention_strategy():
     """이탈 방지 전략 시뮬레이션 API"""
-    strategy = request.json.get('strategy')
-    target_segment = request.json.get('target_segment')
+    try:
+        request_data = request.json
+        
+        if not request_data:
+            return jsonify({
+                'error': 'No strategy data provided',
+                'status': 'error'
+            }), 400
+        
+        strategy = request_data.get('strategy')
+        target_segment = request_data.get('target_segment')
+        
+        if not strategy or not target_segment:
+            return jsonify({
+                'error': 'Missing required parameters: strategy and target_segment',
+                'status': 'error'
+            }), 400
+        
+        # 전략 효과 시뮬레이션 (실제로는 더 복잡한 모델 사용)
+        impact = {
+            'discount': {'churn_reduction': 0.2, 'cost': 'high', 'timeframe': 'short-term'},
+            'content': {'churn_reduction': 0.15, 'cost': 'medium', 'timeframe': 'medium-term'},
+            'engagement': {'churn_reduction': 0.1, 'cost': 'low', 'timeframe': 'long-term'},
+            'feature': {'churn_reduction': 0.05, 'cost': 'medium', 'timeframe': 'long-term'},
+            'upgrade': {'churn_reduction': 0.25, 'cost': 'medium', 'timeframe': 'medium-term'},
+            'urgent': {'churn_reduction': 0.3, 'cost': 'very-high', 'timeframe': 'immediate'},
+            'survey': {'churn_reduction': 0.1, 'cost': 'low', 'timeframe': 'medium-term'}
+        }
+        
+        # 기본 효과
+        strategy_impact = impact.get(strategy, {'churn_reduction': 0.1, 'cost': 'medium', 'timeframe': 'medium-term'})
+        
+        # 타겟 세그먼트에 따른 효과 조정
+        segment_multiplier = {
+            'all': 1.0,
+            'high_risk': 1.2,
+            'new_users': 1.5,
+            'low_engagement': 1.3,
+            'basic_plan': 1.4
+        }
+        
+        multiplier = segment_multiplier.get(target_segment, 1.0)
+        
+        # 최종 효과 계산
+        final_impact = {
+            'churn_reduction': round(strategy_impact['churn_reduction'] * multiplier, 2),
+            'cost': strategy_impact['cost'],
+            'timeframe': strategy_impact['timeframe'],
+            'affected_users': 0
+        }
+        
+        # 영향 받는 사용자 수 계산
+        try:
+            if data and isinstance(data, dict) and 'users' in data and isinstance(data['users'], pd.DataFrame):
+                users_df = data['users']
+                
+                if target_segment == 'all':
+                    final_impact['affected_users'] = len(users_df)
+                elif target_segment == 'high_risk' and 'at_risk_users' in data and isinstance(data['at_risk_users'], pd.DataFrame):
+                    final_impact['affected_users'] = len(data['at_risk_users'])
+                elif target_segment == 'new_users' and 'tenure_months' in users_df.columns:
+                    final_impact['affected_users'] = len(users_df[users_df['tenure_months'] <= 3])
+                elif target_segment == 'low_engagement' and 'weekly_viewing_hours' in users_df.columns:
+                    final_impact['affected_users'] = len(users_df[users_df['weekly_viewing_hours'] < 5])
+                elif target_segment == 'basic_plan' and 'subscription_type' in users_df.columns:
+                    final_impact['affected_users'] = len(users_df[users_df['subscription_type'] == 'Basic'])
+        except Exception as e:
+            logger.error(f"Error calculating affected users: {e}")
+        
+        # ROI
+        cost_map = {'low': 1, 'medium': 2, 'high': 3, 'very-high': 4}
+        cost_value = cost_map.get(final_impact['cost'], 2)
+        saved_users = final_impact['affected_users'] * final_impact['churn_reduction']
+        final_impact['roi'] = round(saved_users / cost_value, 2)
+        
+        return jsonify(final_impact)
     
-    # 전략 효과 시뮬레이션 (실제로는 더 복잡한 모델 사용)
-    impact = {
-        'discount': {'churn_reduction': 0.2, 'cost': 'high', 'timeframe': 'short-term'},
-        'content': {'churn_reduction': 0.15, 'cost': 'medium', 'timeframe': 'medium-term'},
-        'engagement': {'churn_reduction': 0.1, 'cost': 'low', 'timeframe': 'long-term'},
-        'feature': {'churn_reduction': 0.05, 'cost': 'medium', 'timeframe': 'long-term'},
-        'upgrade': {'churn_reduction': 0.25, 'cost': 'medium', 'timeframe': 'medium-term'},
-        'urgent': {'churn_reduction': 0.3, 'cost': 'very-high', 'timeframe': 'immediate'},
-        'survey': {'churn_reduction': 0.1, 'cost': 'low', 'timeframe': 'medium-term'}
-    }
-    
-    # 기본 효과
-    strategy_impact = impact.get(strategy, {'churn_reduction': 0.1, 'cost': 'medium', 'timeframe': 'medium-term'})
-    
-    # 타겟 세그먼트에 따른 효과 조정
-    segment_multiplier = {
-        'all': 1.0,
-        'high_risk': 1.2,
-        'new_users': 1.5,
-        'low_engagement': 1.3,
-        'basic_plan': 1.4
-    }
-    
-    multiplier = segment_multiplier.get(target_segment, 1.0)
-    
-    # 최종 효과 계산
-    final_impact = {
-        'churn_reduction': round(strategy_impact['churn_reduction'] * multiplier, 2),
-        'cost': strategy_impact['cost'],
-        'timeframe': strategy_impact['timeframe'],
-        'affected_users': 0
-    }
-    
-    # 영향 받는 사용자 수 계산
-    if target_segment == 'all':
-        final_impact['affected_users'] = len(data['users'])
-    elif target_segment == 'high_risk':
-        final_impact['affected_users'] = len(data['at_risk_users'])
-    elif target_segment == 'new_users':
-        final_impact['affected_users'] = len(data['users'][data['users']['tenure_months'] <= 3])
-    elif target_segment == 'low_engagement':
-        final_impact['affected_users'] = len(data['users'][data['users']['weekly_viewing_hours'] < 5])
-    elif target_segment == 'basic_plan':
-        final_impact['affected_users'] = len(data['users'][data['users']['subscription_type'] == 'Basic'])
-    
-    # ROI
-    cost_map = {'low': 1, 'medium': 2, 'high': 3, 'very-high': 4}
-    cost_value = cost_map.get(final_impact['cost'], 2)
-    saved_users = final_impact['affected_users'] * final_impact['churn_reduction']
-    final_impact['roi'] = round(saved_users / cost_value, 2)
-    
-    return jsonify(final_impact)
+    except Exception as e:
+        logger.error(f"Error in retention strategy simulation: {e}", exc_info=True)
+        return jsonify({
+            'error': str(e),
+            'status': 'error'
+        }), 500
 
 def recommend_retention_strategies(user):
     """사용자별 이탈 방지 전략 추천"""
@@ -1215,15 +1475,29 @@ def create_dummy_chart(filepath, title="Chart Not Available"):
 @app.route('/model-comparison')
 def model_comparison():
     """모델 비교 및 하이퍼파라미터 튜닝 페이지"""
-    # 저장된 모델 정보 로드
-    models_info = load_models_info()
-    
-    # 현재 시간
-    now = datetime.now()
-    
-    return render_template('model_comparison.html', 
-                          models=models_info,
-                          now=now)
+    try:
+        # 저장된 모델 정보 로드
+        models_info = []
+        try:
+            models_info = load_models_info()
+        except Exception as e:
+            logger.error(f"Error loading models info: {e}")
+            # 빈 모델 목록 사용
+        
+        # 현재 시간
+        now = datetime.now()
+        
+        return render_template('model_comparison.html', 
+                             models=models_info,
+                             now=now)
+    except Exception as e:
+        logger.error(f"Error in model_comparison route: {e}", exc_info=True)
+        try:
+            return render_template('error.html', 
+                                 error_message="모델 비교 페이지를 표시하는 중 문제가 발생했습니다.",
+                                 status_code=500), 500
+        except:
+            return "모델 비교 페이지를 표시하는 중 문제가 발생했습니다.", 500
 
 @app.route('/api/hyperparameter-tuning', methods=['POST'])
 def hyperparameter_tuning_api():
