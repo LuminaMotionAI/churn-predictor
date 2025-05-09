@@ -14,4 +14,5 @@ shap==0.42.1
 imbalanced-learn==0.11.0
 optuna==3.3.0
 kaggle==1.5.16
-tqdm==4.66.1 
+tqdm==4.66.1
+gunicorn==21.2.0 

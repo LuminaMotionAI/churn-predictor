@@ -4,16 +4,17 @@ Render.com deployment entry point
 import sys
 import os
 
-# Add app directory to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'app')))
+# 프로젝트 경로 추가
+project_home = os.path.expanduser('~/churn-predictor')
+if project_home not in sys.path:
+    sys.path.insert(0, project_home)
 
-# Import app from app.py
-from app import app as application
+# 앱 초기화
+from app.app import app
 
-# This allows Render to find the application
-app = application
+# Render.com에서는 PORT 환경변수를 제공합니다
+port = int(os.environ.get("PORT", 8080))
 
-if __name__ == "__main__":
-    # Get PORT from environment variable or use 8080 as default
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port, debug=False) 
+# WSGI 애플리케이션
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=port) 

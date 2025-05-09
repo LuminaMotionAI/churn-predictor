@@ -1,19 +1,10 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # exit on error
 set -o errexit
 
-echo "Starting Flask application..."
-
-# Set environment variables
-export PYTHONUNBUFFERED=true
-export FLASK_ENV=production
-
-# Print current directory and files
-echo "Current directory: $(pwd)"
-ls -la
-
-# Change to app directory and run Flask app
-cd app
+echo "Starting churn-predictor app..."
 echo "App directory content:"
 ls -la
-python app.py 
+
+# Render.com에서 제공하는 PORT 환경변수 사용
+gunicorn --bind 0.0.0.0:$PORT app.app:app 
