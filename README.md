@@ -132,4 +132,4 @@ MIT 라이센스에 따라 배포됩니다. 자세한 내용은 `LICENSE` 파일
 
 프로젝트 관리자 - [이메일 주소](mailto:your.email@example.com)
 
-프로젝트 링크: [https://github.com/yourusername/churn-predictor](https://github.com/yourusername/churn-predictor) 
+프로젝트 링크: [https://github.com/yourusername/churn-predictor](https://github.com/LuminaMotionAI/churn-predictor) 
